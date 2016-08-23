@@ -4,7 +4,7 @@
   "description": "A wrapper for running binaries on Google Cloud Functions",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tests"
   },
   "repository": {
     "type": "git",
@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/abehaskins/Goon/issues"
   },
-  "homepage": "https://github.com/abehaskins/Goon#readme"
+  "homepage": "https://github.com/abehaskins/Goon#readme",
+  "devDependencies": {
+    "chai": "^3.5.0"
+  }
 }

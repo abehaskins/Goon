@@ -1,11 +1,31 @@
 'use strict';
+var path = require('path');
 var spawn = require('child_process').spawn;
 
-function getData(req) {
-  var query;
+var Container = function (binary, opts, req, res) {
+  this.getRawArguments = _getRawArguments;
+  this.getBinaryArguments = _getBinaryArguments;
+  this.run = _run;
+  this.log = _log;
+  this.execute = _execute;
 
-  console.log('type', req.get('content-type'));
-  switch (req.get('content-type')) {
+  this._print = _print;
+  this._respond = _respond;
+
+  opts || (opts={});
+  opts.redirects || (opts.redirects={});
+  opts.argument_prefix || (opts.argument_prefix="-")
+
+  this.opts = opts;
+  this.binary = path.resolve(binary);
+};
+
+function _getRawArguments(req) {
+  var query, contentType = req.get('content-type');
+
+  this.log('type:'+contentType);
+
+  switch (contentType) {
   case 'application/json':
     query = req.body;
     break;
@@ -21,63 +41,86 @@ function getData(req) {
   return query;
 }
 
-function log(opts, msg) {
-  if (opts.debug) {
-    console.log(msg);
-  }
-}
+function _getBinaryArguments(rawArgs) {
+  var binArgs = [];
 
-var container = function (binary, opts, req, res) {
-  var proc, output, args, data;
-
-  opts = opts || {};
-  output = "";
-  args = [];
-  data = getData(req);
-
-  log(opts, 'stdin:' + JSON.stringify(data));
-  if (opts.expects_json) {
-    args.push("-json=" + JSON.stringify(data));
+  this.log('stdin:' + JSON.stringify(rawArgs));
+  if (this.opts.pass_raw_json) {
+    binArgs.push("-json=" + JSON.stringify(rawArgs));
   } else {
-    for (var key in data) {
-      args.push("-" + key + "=" + data[key]);
+    for (var key in rawArgs) {
+      var redirectedKey = (this.opts.redirects[key] || key)
+      binArgs.push(this.opts.argument_prefix + redirectedKey + "=" + rawArgs[key]);
     }
   }
 
-  proc = spawn('./' + binary, args);
+  return binArgs;
+}
+
+function _log(msg) {
+  if (this.opts.verbose) {
+    this._print(msg);
+  }
+}
+
+function _print(msg) {
+  console.log(msg);
+}
+
+function _run(req, res) {
+  var rawArgs, binArgs;
+
+  rawArgs = this.getRawArguments(req);
+  binArgs = this.getBinaryArguments(rawArgs);
+
+  this.execute(this.binary, binArgs, res);
+}
+
+function _execute(binary, binArgs, res) {
+  var proc, running, self = this, output = "";
+  proc = spawn(binary, binArgs);
+
+  running = true;
 
   proc.stdout.on('data', function (data) {
-    log(opts, 'stdout: ' + data);
+    self.log('stdout: ' + data);
     output += data;
   });
 
   proc.stderr.on('data', function (data) {
-    log(opts, 'stderr: ' + data);
-    res.status(500);
+    self.log('stderr: ' + data);
+    if (running) self._respond(data.toString(), 1, res);
+    running = false;
   });
 
   proc.on('close', function (code) {
-    log(opts, output);
-
-    switch (code) {
-    case 0:
-      res.status(200).send(output);
-      break;
-    case 1:
-      res.status(500).json({error: true, msg: "Binary returned error exit code."});
-      break;
-    case 2:
-      res.status(500).json({error: true, msg: "Binary returned error exit code."});
-      break;
-    default:
-      res.status(500).json({error: true, msg: "Binary returned non-standard exit code."})
-      break;
-    }
+    self.log(output);
+    if (running) self._respond(output.toString(), code, res);
+    running = false;
   });
-};
+}
+
+function _respond(output, code, res) {
+  switch (code) {
+  case 0:
+    res.status(200).send(output);
+    break;
+  case 1:
+    res.status(500).json({error: true, msg: "Binary returned error exit code."});
+    break;
+  case 2:
+    res.status(500).json({error: true, msg: "Binary returned error exit code."});
+    break;
+  default:
+    res.status(500).json({error: true, msg: "Binary returned non-standard exit code."})
+    break;
+  }
+}
 
 exports.enable = function (funcs, binary, options) {
+  var container = new Container(binary, options);
   funcs[binary] = function (req, res) {
-    container(binary, options, req, res);
+    container.run(res);
   }
+  return container;
 }

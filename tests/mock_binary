@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+
+var code, content;
+
+// Worst script ever
+
+switch (process.argv[2]) {
+  case "--code=0":
+    code = 0;
+    break;
+  case "--code=1":
+    code = 1;
+    break;
+  case "--code=2":
+    code = 2;
+    break;
+}
+
+switch (process.argv[3]) {
+  case "--content=json":
+    content = JSON.stringify({hello: "world"});
+    break;
+  case "--content=plain":
+    content = "Hello World!"
+    break;
+  default:
+    content = "";
+    break;
+}
+
+console.log(content);
+process.exit(code);
