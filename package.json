@@ -1,6 +1,6 @@
 {
   "name": "goon",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A wrapper for running binaries on Google Cloud Functions",
   "main": "index.js",
   "scripts": {
